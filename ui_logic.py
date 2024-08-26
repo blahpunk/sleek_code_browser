@@ -1,8 +1,10 @@
+# ui_logic.py
+
 import os
 import mimetypes
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QFileDialog, QTreeWidgetItem, QPushButton, QToolButton, QApplication
-from PyQt5.QtGui import QColor, QTextCursor
+from PyQt5.QtGui import QColor
 
 class UiLogic:
     def __init__(self, ui_setup):
@@ -21,6 +23,7 @@ class UiLogic:
     def selectFolder(self):
         folderPath = QFileDialog.getExistingDirectory(self.ui_setup.mainWidget, "Select Folder")
         if folderPath:
+            folderPath = os.path.abspath(folderPath)  # Ensure the selected path is absolute
             self.populateFileTree(folderPath)
 
     def populateFileTree(self, folderPath):
@@ -38,11 +41,14 @@ class UiLogic:
     def processTree(self, parentItem):
         for i in range(parentItem.childCount()):
             child = parentItem.child(i)
-            if child.checkState(0) == Qt.Checked:  # Ensure only checked items are processed
-                filePath = child.data(0, Qt.UserRole)
-                if filePath and os.path.isfile(filePath) and self.is_text_file(filePath):
-                    self.displayFileContent(filePath)
-                # Only process children if the current item is checked
+
+            # Ensure the current item is processed even if it's not expanded
+            if child.isExpanded() or child.checkState(0) == Qt.Checked:
+                if child.checkState(0) == Qt.Checked:
+                    filePath = child.data(0, Qt.UserRole)
+                    if filePath and os.path.isfile(filePath) and self.is_text_file(filePath):
+                        self.displayFileContent(filePath)
+                # Process children recursively
                 self.processTree(child)
 
     def is_text_file(self, filePath):
@@ -112,3 +118,5 @@ class UiLogic:
     def copyAllText(self):
         clipboard = QApplication.clipboard()
         clipboard.setText(self.ui_setup.textArea.toPlainText())
+
+# End of ui_logic.py
