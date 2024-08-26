@@ -42,14 +42,14 @@ class UiLogic:
         for i in range(parentItem.childCount()):
             child = parentItem.child(i)
 
-            # Ensure the current item is processed even if it's not expanded
-            if child.isExpanded() or child.checkState(0) == Qt.Checked:
-                if child.checkState(0) == Qt.Checked:
-                    filePath = child.data(0, Qt.UserRole)
-                    if filePath and os.path.isfile(filePath) and self.is_text_file(filePath):
-                        self.displayFileContent(filePath)
-                # Process children recursively
-                self.processTree(child)
+            if child.checkState(0) == Qt.Checked:
+                filePath = child.data(0, Qt.UserRole)
+                if filePath and os.path.isfile(filePath):
+                    # Display the file content regardless of the file type if it's checked
+                    self.displayFileContent(filePath)
+
+            # Process children recursively
+            self.processTree(child)
 
     def is_text_file(self, filePath):
         mime_type, _ = mimetypes.guess_type(filePath)
