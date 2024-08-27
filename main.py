@@ -16,7 +16,7 @@ class FileBrowserApp(QMainWindow):
         self.initUI()
 
     def initUI(self):
-        self.setWindowTitle('Sleek File Browser')
+        self.setWindowTitle('Sleek Code Browser')
         self.setGeometry(100, 100, 800, 600)
 
 
