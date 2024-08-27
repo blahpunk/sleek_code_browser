@@ -1,5 +1,3 @@
-# ui_logic.py
-
 import os
 import mimetypes
 from PyQt5.QtCore import Qt
@@ -35,21 +33,10 @@ class UiLogic:
             self.ui_setup.tabLayout.itemAt(i).widget().deleteLater()
         self.filePositions = {}
 
-        rootItem = self.ui_setup.fileTree.invisibleRootItem()
-        self.processTree(rootItem)
-
-    def processTree(self, parentItem):
-        for i in range(parentItem.childCount()):
-            child = parentItem.child(i)
-
-            if child.checkState(0) == Qt.Checked:
-                filePath = child.data(0, Qt.UserRole)
-                if filePath and os.path.isfile(filePath):
-                    # Display the file content regardless of the file type if it's checked
-                    self.displayFileContent(filePath)
-
-            # Process children recursively
-            self.processTree(child)
+        checked_items = self.ui_setup.fileTree.get_checked_items()
+        for filePath in checked_items:
+            if os.path.isfile(filePath):
+                self.displayFileContent(filePath)
 
     def is_text_file(self, filePath):
         mime_type, _ = mimetypes.guess_type(filePath)
@@ -118,5 +105,3 @@ class UiLogic:
     def copyAllText(self):
         clipboard = QApplication.clipboard()
         clipboard.setText(self.ui_setup.textArea.toPlainText())
-
-# End of ui_logic.py

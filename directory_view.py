@@ -1,5 +1,3 @@
-# directory_view.py
-
 import os
 from PyQt5.QtWidgets import QTreeWidget, QTreeWidgetItem
 from PyQt5.QtCore import Qt
@@ -35,7 +33,7 @@ class DirectoryView(QTreeWidget):
                         # Use a placeholder child to indicate the folder can be expanded
                         item.addChild(QTreeWidgetItem(["Loading..."]))
                     else:
-                        self.addDirectoryItems(item, filePath)  # Recursively add subdirectories
+                        self.addDirectoryItems(item, filePath, lazy_load=True)  # Recursively add subdirectories
 
                 else:
                     item.setText(0, f"📄 {fileName}")
@@ -52,6 +50,27 @@ class DirectoryView(QTreeWidget):
         if item.childCount() == 1 and item.child(0).text(0) == "Loading...":
             item.takeChildren()  # Remove the placeholder
             folderPath = item.data(0, Qt.UserRole)
-            self.addDirectoryItems(item, folderPath)  # Load the actual contents
+            self.addDirectoryItems(item, folderPath, lazy_load=True)  # Load the actual contents
 
-# End of directory_view.py
+    def get_checked_items(self):
+        """Recursively collect all checked files and folders."""
+        checked_items = []
+        self.collect_checked_items(self.invisibleRootItem(), checked_items)
+        return checked_items
+
+    def collect_checked_items(self, parentItem, checked_items):
+        for i in range(parentItem.childCount()):
+            child = parentItem.child(i)
+            filePath = child.data(0, Qt.UserRole)
+
+            if child.checkState(0) == Qt.Checked:
+                if filePath:
+                    checked_items.append(filePath)
+
+                # If this is a directory, recurse into it
+                if os.path.isdir(filePath):
+                    # Ensure all items in this directory are checked
+                    if not child.isExpanded():
+                        # Manually expand the directory to ensure all items are included
+                        self.addDirectoryItems(child, filePath, lazy_load=False)
+                    self.collect_checked_items(child, checked_items)
