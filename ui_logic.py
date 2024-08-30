@@ -1,7 +1,7 @@
 import os
 import mimetypes
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QFileDialog, QTreeWidgetItem, QPushButton, QToolButton, QApplication
+from PyQt5.QtWidgets import QFileDialog, QPushButton, QToolButton, QApplication
 from PyQt5.QtGui import QColor
 
 class UiLogic:
@@ -25,18 +25,28 @@ class UiLogic:
             self.populateFileTree(folderPath)
 
     def populateFileTree(self, folderPath):
-        self.ui_setup.fileTree.populate(folderPath, self.default_checked_extensions)  # Pass the list of default checked extensions
+        self.ui_setup.fileTree.clear()  # Clear the tree to avoid duplication
+        self.ui_setup.fileTree.populate(folderPath, self.default_checked_extensions)  # Populate the tree
 
     def showContents(self):
-        self.ui_setup.textArea.clear()
-        for i in reversed(range(self.ui_setup.tabLayout.count())): 
-            self.ui_setup.tabLayout.itemAt(i).widget().deleteLater()
-        self.filePositions = {}
+        self.ui_setup.textArea.clear()  # Clear the text area
+        self.clearTabs()  # Clear the tab buttons before adding new ones
+        self.filePositions.clear()  # Clear stored file positions
 
         checked_items = self.ui_setup.fileTree.get_checked_items()
+        added_files = set()  # Set to keep track of already added files
+
         for filePath in checked_items:
-            if os.path.isfile(filePath):
+            if os.path.isfile(filePath) and filePath not in added_files:
                 self.displayFileContent(filePath)
+                added_files.add(filePath)  # Add filePath to the set after it's displayed
+
+    def clearTabs(self):
+        """Clear all tabs and buttons from the layout."""
+        while self.ui_setup.tabLayout.count():
+            child = self.ui_setup.tabLayout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
 
     def is_text_file(self, filePath):
         mime_type, _ = mimetypes.guess_type(filePath)
@@ -105,3 +115,5 @@ class UiLogic:
     def copyAllText(self):
         clipboard = QApplication.clipboard()
         clipboard.setText(self.ui_setup.textArea.toPlainText())
+
+# End of ui_logic.py

@@ -20,7 +20,16 @@ class DirectoryView(QTreeWidget):
 
     def addDirectoryItems(self, parentItem, folderPath, lazy_load=False):
         try:
+            existing_items = set()  # Track added items to prevent duplicates
+
+            for i in range(parentItem.childCount()):
+                child = parentItem.child(i)
+                existing_items.add(child.text(0))
+
             for fileName in sorted(os.listdir(folderPath)):
+                if fileName in existing_items:
+                    continue
+
                 filePath = os.path.join(folderPath, fileName)
                 item = QTreeWidgetItem(parentItem)
                 item.setData(0, Qt.UserRole, filePath)  # Store the file path in the item
@@ -74,3 +83,5 @@ class DirectoryView(QTreeWidget):
                         # Manually expand the directory to ensure all items are included
                         self.addDirectoryItems(child, filePath, lazy_load=False)
                     self.collect_checked_items(child, checked_items)
+
+# End of directory_view.py
