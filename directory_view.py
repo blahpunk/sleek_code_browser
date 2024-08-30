@@ -20,17 +20,13 @@ class DirectoryView(QTreeWidget):
 
     def addDirectoryItems(self, parentItem, folderPath, lazy_load=False):
         try:
-            existing_items = set()  # Track added items to prevent duplicates
-
-            for i in range(parentItem.childCount()):
-                child = parentItem.child(i)
-                existing_items.add(child.text(0))
+            existing_items = {parentItem.child(i).data(0, Qt.UserRole) for i in range(parentItem.childCount())}
 
             for fileName in sorted(os.listdir(folderPath)):
-                if fileName in existing_items:
-                    continue
-
                 filePath = os.path.join(folderPath, fileName)
+                if filePath in existing_items:
+                    continue  # Skip if the item is already added
+
                 item = QTreeWidgetItem(parentItem)
                 item.setData(0, Qt.UserRole, filePath)  # Store the file path in the item
 
@@ -43,7 +39,6 @@ class DirectoryView(QTreeWidget):
                         item.addChild(QTreeWidgetItem(["Loading..."]))
                     else:
                         self.addDirectoryItems(item, filePath, lazy_load=True)  # Recursively add subdirectories
-
                 else:
                     item.setText(0, f"📄 {fileName}")
                     file_extension = os.path.splitext(fileName)[1].lower()
@@ -83,5 +78,11 @@ class DirectoryView(QTreeWidget):
                         # Manually expand the directory to ensure all items are included
                         self.addDirectoryItems(child, filePath, lazy_load=False)
                     self.collect_checked_items(child, checked_items)
+
+    def refresh(self):
+        """Refresh the entire tree without duplicating items."""
+        self.clear()  # Clear the current tree
+        if self.folder_path:
+            self.populate(self.folder_path, self.default_checked_extensions)  # Repopulate the tree from the stored path
 
 # End of directory_view.py
