@@ -1,6 +1,11 @@
 
 # Sleek Code Browser
 
+
+## Screenshots
+
+![EZ_ffmpeg GUI Screenshot](screenshots/09-04-2024_01.jpg)
+
 Sleek Code Browser is a modern, responsive tool designed to simplify the process of browsing, viewing, and copying code from your projects. With a sleek, dark-themed interface, this application makes it easy to navigate your project folders, view the content of code files, and quickly copy snippets or entire files to the clipboard.
 
 ## Features
