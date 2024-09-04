@@ -23,10 +23,15 @@ class UiLogic:
         if folderPath:
             folderPath = os.path.abspath(folderPath)  # Ensure the selected path is absolute
             self.populateFileTree(folderPath)
+            self.updateWindowTitle(folderPath)  # Update the window title with the selected folder
 
     def populateFileTree(self, folderPath):
         self.ui_setup.fileTree.clear()  # Clear the tree to avoid duplication
         self.ui_setup.fileTree.populate(folderPath, self.default_checked_extensions)  # Populate the tree
+
+    def updateWindowTitle(self, folderPath):
+        folderName = os.path.basename(folderPath)
+        self.ui_setup.mainWidget.window().setWindowTitle(f"Sleek Code Browser - {folderName}")
 
     def showContents(self):
         self.ui_setup.textArea.clear()  # Clear the text area
@@ -115,5 +120,6 @@ class UiLogic:
     def copyAllText(self):
         clipboard = QApplication.clipboard()
         clipboard.setText(self.ui_setup.textArea.toPlainText())
+
 
 # End of ui_logic.py
