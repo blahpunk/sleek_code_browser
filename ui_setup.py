@@ -55,10 +55,6 @@ class UiSetup:
         splitter.addWidget(self.fileTree)
         splitter.setSizes([400, 200])
 
-        # Indeterminate progress bar (reserved for future use)
-        self.progressBar = QProgressBar()
-        self.progressBar.setRange(0, 0)
-
         # Buttons below the UI
         self.buttonsLayout = QHBoxLayout()
         self.selectFolderButton = QPushButton('Select Folder')
@@ -76,5 +72,4 @@ class UiSetup:
         # Main layout of the window
         mainLayout = QVBoxLayout(self.mainWidget)
         mainLayout.addWidget(splitter)
-        mainLayout.addWidget(self.progressBar)
         mainLayout.addLayout(self.buttonsLayout)
