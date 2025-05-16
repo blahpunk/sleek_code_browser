@@ -5,17 +5,29 @@ from PyQt5.QtCore import Qt
 class DirectoryView(QTreeWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setHeaderHidden(True)  # Hide the header for a cleaner look
-        self.folder_path = ""  # Initialize the folder path attribute
-        self.default_checked_extensions = []
-
-        # Connect the item expanded signal to load items lazily
+        self.setHeaderHidden(True)
+        self.folder_path = ""
+        self.excluded_extensions = []
+        self.excluded_extensions_lower = []
+        self.excluded_folders = []
+        self.excluded_folders_lower = []
+        self.excluded_files = []
+        self.excluded_files_lower = []
         self.itemExpanded.connect(self.onItemExpanded)
 
-    def populate(self, folderPath, default_checked_extensions=None):
-        self.clear()  # Clear existing items
-        self.folder_path = folderPath  # Store the folder path
-        self.default_checked_extensions = default_checked_extensions if default_checked_extensions else []  # Store the default checked extensions
+    def populate(self, folderPath, excluded_extensions=None, excluded_folders=None, excluded_files=None):
+        self.clear()
+        self.folder_path = folderPath
+
+        self.excluded_extensions = excluded_extensions or []
+        self.excluded_extensions_lower = [e.lower() for e in self.excluded_extensions]
+
+        self.excluded_folders = excluded_folders or []
+        self.excluded_folders_lower = [f.lower() for f in self.excluded_folders]
+
+        self.excluded_files = excluded_files or []
+        self.excluded_files_lower = [f.lower() for f in self.excluded_files]
+
         self.addDirectoryItems(self.invisibleRootItem(), folderPath, lazy_load=True)
 
     def addDirectoryItems(self, parentItem, folderPath, lazy_load=False):
@@ -24,40 +36,43 @@ class DirectoryView(QTreeWidget):
 
             for fileName in sorted(os.listdir(folderPath)):
                 filePath = os.path.join(folderPath, fileName)
+                lowerName = fileName.lower()
+
                 if filePath in existing_items:
-                    continue  # Skip if the item is already added
+                    continue
 
                 item = QTreeWidgetItem(parentItem)
-                item.setData(0, Qt.UserRole, filePath)  # Store the file path in the item
+                item.setData(0, Qt.UserRole, filePath)
 
                 if os.path.isdir(filePath):
                     item.setText(0, f"📁 {fileName}")
-                    item.setCheckState(0, Qt.Checked)  # Folders are always checked by default
+                    if lowerName in self.excluded_folders_lower:
+                        item.setCheckState(0, Qt.Unchecked)
+                    else:
+                        item.setCheckState(0, Qt.Checked)
 
                     if lazy_load:
-                        # Use a placeholder child to indicate the folder can be expanded
                         item.addChild(QTreeWidgetItem(["Loading..."]))
                     else:
-                        self.addDirectoryItems(item, filePath, lazy_load=True)  # Recursively add subdirectories
+                        self.addDirectoryItems(item, filePath, lazy_load=True)
                 else:
                     item.setText(0, f"📄 {fileName}")
                     file_extension = os.path.splitext(fileName)[1].lower()
-                    if file_extension in self.default_checked_extensions:
-                        item.setCheckState(0, Qt.Checked)
-                    else:
+
+                    if lowerName in self.excluded_files_lower or file_extension in self.excluded_extensions_lower:
                         item.setCheckState(0, Qt.Unchecked)
+                    else:
+                        item.setCheckState(0, Qt.Checked)
         except Exception as e:
             print(f"Error loading directory {folderPath}: {e}")
 
     def onItemExpanded(self, item):
-        # Load the contents of the directory when expanded
         if item.childCount() == 1 and item.child(0).text(0) == "Loading...":
-            item.takeChildren()  # Remove the placeholder
+            item.takeChildren()
             folderPath = item.data(0, Qt.UserRole)
-            self.addDirectoryItems(item, folderPath, lazy_load=True)  # Load the actual contents
+            self.addDirectoryItems(item, folderPath, lazy_load=True)
 
     def get_checked_items(self):
-        """Recursively collect all checked files and folders."""
         checked_items = []
         self.collect_checked_items(self.invisibleRootItem(), checked_items)
         return checked_items
@@ -66,23 +81,20 @@ class DirectoryView(QTreeWidget):
         for i in range(parentItem.childCount()):
             child = parentItem.child(i)
             filePath = child.data(0, Qt.UserRole)
-
             if child.checkState(0) == Qt.Checked:
                 if filePath:
                     checked_items.append(filePath)
-
-                # If this is a directory, recurse into it
                 if os.path.isdir(filePath):
-                    # Ensure all items in this directory are checked
                     if not child.isExpanded():
-                        # Manually expand the directory to ensure all items are included
                         self.addDirectoryItems(child, filePath, lazy_load=False)
                     self.collect_checked_items(child, checked_items)
 
     def refresh(self):
-        """Refresh the entire tree without duplicating items."""
-        self.clear()  # Clear the current tree
+        self.clear()
         if self.folder_path:
-            self.populate(self.folder_path, self.default_checked_extensions)  # Repopulate the tree from the stored path
-
-# End of directory_view.py
+            self.populate(
+                self.folder_path,
+                excluded_extensions=self.excluded_extensions,
+                excluded_folders=self.excluded_folders,
+                excluded_files=self.excluded_files
+            )

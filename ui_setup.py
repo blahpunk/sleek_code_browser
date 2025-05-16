@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import (
-    QVBoxLayout, QHBoxLayout, QWidget, QTextEdit, 
+    QVBoxLayout, QHBoxLayout, QWidget, QTextEdit,
     QSplitter, QPushButton, QProgressBar, QScrollArea, QFrame
 )
 from PyQt5.QtGui import QFont
@@ -15,49 +15,34 @@ class UiSetup:
     def setup_ui(self):
         splitter = QSplitter(Qt.Vertical)
 
-        # Text area and Tabs above the file tree
+        # Top half: text area + tabs
         contentWidget = QWidget()
         contentLayout = QVBoxLayout(contentWidget)
 
-        # Scroll area for tab buttons
+        # Horizontal scrollable area for file tab buttons
         self.scrollArea = QScrollArea()
         self.scrollArea.setWidgetResizable(True)
         self.scrollArea.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.scrollArea.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.scrollArea.setFrameShape(QFrame.NoFrame)
-        self.scrollArea.setFixedHeight(32)  # Set height to fit the buttons without extra space
+        self.scrollArea.setFixedHeight(32)
         self.scrollArea.setStyleSheet("""
-            QScrollArea {
-                background-color: #2c2c2c;  /* Matches the dark theme */
-                border: none;
-            }
-            QWidget {
-                background-color: #2c2c2c;  /* Ensures the background behind the buttons is dark */
-            }
-            QScrollBar:horizontal {
-                background-color: #2c2c2c;
-                height: 8px;
-            }
-            QScrollBar::handle:horizontal {
-                background-color: #5a5a5a;
-                min-width: 20px;
-                border-radius: 4px;
-            }
-            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
-                background: none;
-                width: 0px;
-            }
+            QScrollArea { background-color: #2c2c2c; border: none; }
+            QWidget { background-color: #2c2c2c; }
+            QScrollBar:horizontal { background-color: #2c2c2c; height: 8px; }
+            QScrollBar::handle:horizontal { background-color: #5a5a5a; min-width: 20px; border-radius: 4px; }
+            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { background: none; width: 0px; }
         """)
 
-        # Tab widget for filenames inside the scroll area
         self.tabBar = QWidget()
         self.tabLayout = QHBoxLayout(self.tabBar)
-        self.tabLayout.setContentsMargins(0, 0, 0, 0)  # No margins
-        self.tabLayout.setSpacing(5)  # Adjust spacing as needed
+        self.tabLayout.setContentsMargins(0, 0, 0, 0)
+        self.tabLayout.setSpacing(5)
         self.scrollArea.setWidget(self.tabBar)
 
         contentLayout.addWidget(self.scrollArea)
 
+        # Multi-line text editor for file content display
         self.textArea = QTextEdit()
         self.textArea.setFont(QFont('Consolas', 10))
         self.textArea.setStyleSheet("background-color: #2c2c2c; color: #f8f8f8;")
@@ -65,29 +50,31 @@ class UiSetup:
 
         splitter.addWidget(contentWidget)
 
-        # Directory view instead of a plain QTreeWidget
+        # Bottom half: tree view of files/folders
         self.fileTree = DirectoryView()
         splitter.addWidget(self.fileTree)
-
         splitter.setSizes([400, 200])
 
-        # Progress bar for loading indication
+        # Indeterminate progress bar (reserved for future use)
         self.progressBar = QProgressBar()
-        self.progressBar.setRange(0, 0)  # Indeterminate progress bar
+        self.progressBar.setRange(0, 0)
 
-        # Buttons layout
+        # Buttons below the UI
         self.buttonsLayout = QHBoxLayout()
         self.selectFolderButton = QPushButton('Select Folder')
         self.showButton = QPushButton('Show')
         self.copyAllButton = QPushButton('Copy All')
+        self.refreshButton = QPushButton('Refresh')  # NEW
+        self.modifyExclusionsButton = QPushButton('Manage Exclusions')  # NEW
+
         self.buttonsLayout.addWidget(self.selectFolderButton)
         self.buttonsLayout.addWidget(self.showButton)
         self.buttonsLayout.addWidget(self.copyAllButton)
+        self.buttonsLayout.addWidget(self.refreshButton)
+        self.buttonsLayout.addWidget(self.modifyExclusionsButton)
 
-        # Main layout
+        # Main layout of the window
         mainLayout = QVBoxLayout(self.mainWidget)
         mainLayout.addWidget(splitter)
         mainLayout.addWidget(self.progressBar)
         mainLayout.addLayout(self.buttonsLayout)
-
-# End of ui_setup.py
