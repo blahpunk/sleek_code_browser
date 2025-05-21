@@ -60,6 +60,9 @@ class UiSetup:
         self.selectFolderButton = QPushButton('Select Folder')
         self.showButton = QPushButton('Show')
         self.copyAllButton = QPushButton('Copy All')
+        self.expandSelectedButton = QPushButton('Expand Selected')  # NEW
+        self.buttonsLayout.addWidget(self.expandSelectedButton)
+
         self.refreshButton = QPushButton('Refresh')  # NEW
         self.modifyExclusionsButton = QPushButton('Manage Exclusions')  # NEW
 

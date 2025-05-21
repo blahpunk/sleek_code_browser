@@ -66,6 +66,8 @@ class UiLogic:
         self.ui_setup.copyAllButton.clicked.connect(self.copyAllText)
         self.ui_setup.refreshButton.clicked.connect(self.refreshFolder)
         self.ui_setup.modifyExclusionsButton.clicked.connect(self.manageExclusions)
+        self.ui_setup.expandSelectedButton.clicked.connect(self.expandCheckedFolders)
+
 
     def selectFolder(self):
         folderPath = QFileDialog.getExistingDirectory(self.ui_setup.mainWidget, "Select Folder")
@@ -249,3 +251,30 @@ class UiLogic:
             self.populateFileTree(self.ui_setup.fileTree.folder_path)
 
         dialog.accept()
+
+    def expandCheckedFolders(self):
+        def expand_recursive(item):
+            path = item.data(0, Qt.UserRole)
+            if path is None or not os.path.isdir(path):
+                return item.checkState(0) == Qt.Checked
+
+            # Lazy-load children if necessary
+            if item.childCount() == 1 and item.child(0).text(0) == "Loading...":
+                self.ui_setup.fileTree.onItemExpanded(item)
+
+            has_checked_descendant = False
+
+            for i in range(item.childCount()):
+                child = item.child(i)
+                if expand_recursive(child):
+                    has_checked_descendant = True
+
+            if item.checkState(0) == Qt.Checked and has_checked_descendant:
+                item.setExpanded(True)
+                return True
+
+            return False  # Either not checked or no checked children
+
+        root = self.ui_setup.fileTree.invisibleRootItem()
+        for i in range(root.childCount()):
+            expand_recursive(root.child(i))
