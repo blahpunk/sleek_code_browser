@@ -1,9 +1,19 @@
+# main.py
+
 import sys
+import os
 from PyQt5.QtWidgets import QApplication, QMainWindow
+from PyQt5.QtGui import QIcon
 from ui_logic import UiLogic
 from ui_setup import UiSetup
 from styles import apply_styles
-from PyQt5.QtGui import QIcon
+
+
+def resource_path(relative_path):
+    """Get absolute path to resource, works for dev and for PyInstaller."""
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)
 
 
 class FileBrowserApp(QMainWindow):
@@ -12,7 +22,7 @@ class FileBrowserApp(QMainWindow):
         self.ui_setup = UiSetup(self)
         self.ui_logic = UiLogic(self.ui_setup)
         apply_styles(self)
-        self.setWindowIcon(QIcon('icon.ico'))  # Set the window icon
+        self.setWindowIcon(QIcon(resource_path('icon.ico')))  # Use bundled icon
         self.initUI()
 
     def initUI(self):
