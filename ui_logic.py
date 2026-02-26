@@ -1,4 +1,7 @@
+# ui_logic.py
+
 import os
+import sys
 import mimetypes
 import configparser
 from PyQt5.QtCore import Qt
@@ -8,6 +11,11 @@ from PyQt5.QtWidgets import (
     QInputDialog, QMessageBox
 )
 from PyQt5.QtGui import QColor
+
+def get_config_path():
+    if hasattr(sys, '_MEIPASS'):
+        return os.path.join(sys._MEIPASS, 'settings.ini')
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), 'settings.ini')
 
 class UiLogic:
     def __init__(self, ui_setup):
@@ -20,21 +28,19 @@ class UiLogic:
         self.connect_signals()
 
     def load_exclusions(self):
-        config_path = 'settings.ini'
+        config_path = get_config_path()
 
-        # If the file doesn't exist, create it with default values
         if not os.path.exists(config_path):
             default_ini = """[Extensions]
-    excluded = .exe, .bin, .dll, .obj, .ico, .ini, .md, .jpg, .gif, .png, .mkv, .mp4
+excluded = .exe, .bin, .dll, .obj, .ico, .ini, .md, .jpg, .gif, .png, .mkv, .mp4
 
-    [Exclusions]
-    folders = __pycache__, build, .git, node_modules, dist
-    files = thumbs.db, desktop.ini, .gitignore
-    """
+[Exclusions]
+folders = __pycache__, build, .git, node_modules, dist
+files = thumbs.db, desktop.ini, .gitignore
+"""
             with open(config_path, 'w') as f:
                 f.write(default_ini)
 
-        # Now load it
         config = configparser.ConfigParser()
         config.read(config_path)
 
@@ -59,7 +65,6 @@ class UiLogic:
             print(f"Failed to load excluded files: {e}")
             self.excluded_files = []
 
-
     def connect_signals(self):
         self.ui_setup.selectFolderButton.clicked.connect(self.selectFolder)
         self.ui_setup.showButton.clicked.connect(self.showContents)
@@ -67,7 +72,6 @@ class UiLogic:
         self.ui_setup.refreshButton.clicked.connect(self.refreshFolder)
         self.ui_setup.modifyExclusionsButton.clicked.connect(self.manageExclusions)
         self.ui_setup.expandSelectedButton.clicked.connect(self.expandCheckedFolders)
-
 
     def selectFolder(self):
         folderPath = QFileDialog.getExistingDirectory(self.ui_setup.mainWidget, "Select Folder")
@@ -175,7 +179,7 @@ class UiLogic:
         clipboard.setText(self.ui_setup.textArea.toPlainText())
 
     def manageExclusions(self):
-        self.load_exclusions()  # Ensure settings.ini is re-read fresh
+        self.load_exclusions()
         dialog = QDialog(self.ui_setup.mainWidget)
         dialog.setWindowTitle("Manage Exclusions")
         layout = QVBoxLayout(dialog)
@@ -224,10 +228,10 @@ class UiLogic:
         dialog.exec_()
 
     def saveExclusionsAndClose(self, widgets, dialog):
+        config_path = get_config_path()
         config = configparser.ConfigParser()
-        config.read('settings.ini')
+        config.read(config_path)
 
-        # Preserve original case, but still normalize extensions with leading dot
         ext_list = []
         for i in range(widgets[0][1].count()):
             ext = widgets[0][1].item(i).text().strip()
@@ -235,7 +239,6 @@ class UiLogic:
                 ext = '.' + ext
             ext_list.append(ext)
 
-        # Preserve case for folders and files
         folders_list = [widgets[1][1].item(i).text().strip() for i in range(widgets[1][1].count())]
         files_list = [widgets[2][1].item(i).text().strip() for i in range(widgets[2][1].count())]
 
@@ -243,7 +246,7 @@ class UiLogic:
         config.set('Exclusions', 'folders', ', '.join(folders_list))
         config.set('Exclusions', 'files', ', '.join(files_list))
 
-        with open('settings.ini', 'w') as configfile:
+        with open(config_path, 'w') as configfile:
             config.write(configfile)
 
         self.load_exclusions()
@@ -258,7 +261,6 @@ class UiLogic:
             if path is None or not os.path.isdir(path):
                 return item.checkState(0) == Qt.Checked
 
-            # Lazy-load children if necessary
             if item.childCount() == 1 and item.child(0).text(0) == "Loading...":
                 self.ui_setup.fileTree.onItemExpanded(item)
 
@@ -273,8 +275,11 @@ class UiLogic:
                 item.setExpanded(True)
                 return True
 
-            return False  # Either not checked or no checked children
+            return False
 
         root = self.ui_setup.fileTree.invisibleRootItem()
         for i in range(root.childCount()):
             expand_recursive(root.child(i))
+
+
+# End of ui_logic.py
