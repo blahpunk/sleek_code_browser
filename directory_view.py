@@ -1,100 +1,389 @@
 import os
+
+from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QTreeWidget, QTreeWidgetItem
-from PyQt5.QtCore import Qt
+
 
 class DirectoryView(QTreeWidget):
+    check_state_changed = pyqtSignal()
+    PLACEHOLDER_TEXT = "Loading..."
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setHeaderHidden(True)
         self.folder_path = ""
-        self.excluded_extensions = []
-        self.excluded_extensions_lower = []
-        self.excluded_folders = []
-        self.excluded_folders_lower = []
-        self.excluded_files = []
-        self.excluded_files_lower = []
-        self.itemExpanded.connect(self.onItemExpanded)
+        self.folder_errors = []
+        self._rules = self._normalize_rules(None)
+        self._state_overrides = {}
+        self._suppress_item_changed = False
+        self._name_filter = ""
+        self._extension_filter = ""
+        self._show_checked_only = False
+        self.itemExpanded.connect(self.on_item_expanded)
+        self.itemChanged.connect(self.on_item_changed)
 
-    def populate(self, folderPath, excluded_extensions=None, excluded_folders=None, excluded_files=None):
+    def populate(self, folder_path, exclusion_rules=None, state_overrides=None):
         self.clear()
-        self.folder_path = folderPath
+        self.folder_errors = []
+        self.folder_path = os.path.abspath(folder_path) if folder_path else ""
+        self._rules = self._normalize_rules(exclusion_rules)
+        self._state_overrides = self._normalize_state_overrides(state_overrides)
 
-        self.excluded_extensions = excluded_extensions or []
-        self.excluded_extensions_lower = [e.lower() for e in self.excluded_extensions]
+        if not self.folder_path:
+            return
 
-        self.excluded_folders = excluded_folders or []
-        self.excluded_folders_lower = [f.lower() for f in self.excluded_folders]
+        self._suppress_item_changed = True
+        self.add_directory_items(self.invisibleRootItem(), self.folder_path, lazy_load=True)
+        self._recompute_parent_states(self.invisibleRootItem())
+        self._suppress_item_changed = False
+        self.apply_active_filter()
 
-        self.excluded_files = excluded_files or []
-        self.excluded_files_lower = [f.lower() for f in self.excluded_files]
+    def _normalize_state_overrides(self, state_overrides):
+        normalized = {}
+        if not state_overrides:
+            return normalized
 
-        self.addDirectoryItems(self.invisibleRootItem(), folderPath, lazy_load=True)
+        for path, state in state_overrides.items():
+            try:
+                normalized[self._normalize_path(path)] = int(state)
+            except (TypeError, ValueError):
+                continue
+        return normalized
 
-    def addDirectoryItems(self, parentItem, folderPath, lazy_load=False):
+    def _normalize_rules(self, rules):
+        base = rules or {}
+        return {
+            "folders": self._normalize_names(base.get("folders")),
+            "files": self._normalize_names(base.get("files")),
+            "extensions": self._normalize_extensions(base.get("extensions")),
+            "always_include_folders": self._normalize_names(base.get("always_include_folders")),
+            "always_include_files": self._normalize_names(base.get("always_include_files")),
+            "always_include_extensions": self._normalize_extensions(base.get("always_include_extensions")),
+        }
+
+    def _normalize_names(self, values):
+        normalized = set()
+        for value in values or []:
+            text = str(value).strip().lower()
+            if text:
+                normalized.add(text)
+        return normalized
+
+    def _normalize_extensions(self, values):
+        normalized = set()
+        for value in values or []:
+            text = str(value).strip().lower()
+            if not text:
+                continue
+            if not text.startswith("."):
+                text = f".{text}"
+            normalized.add(text)
+        return normalized
+
+    def _normalize_path(self, path):
+        return os.path.normcase(os.path.abspath(path))
+
+    def _is_directory_path(self, path):
+        return bool(path) and os.path.isdir(path)
+
+    def _get_override_state(self, path):
+        return self._state_overrides.get(self._normalize_path(path))
+
+    def add_directory_items(self, parent_item, folder_path, lazy_load=False):
+        self._remove_placeholder_if_present(parent_item)
+        parent_state = self._item_state(parent_item)
+
         try:
-            existing_items = {parentItem.child(i).data(0, Qt.UserRole) for i in range(parentItem.childCount())}
+            names = sorted(os.listdir(folder_path), key=str.lower)
+        except Exception as error:
+            self.folder_errors.append((folder_path, str(error)))
+            return
 
-            for fileName in sorted(os.listdir(folderPath)):
-                filePath = os.path.join(folderPath, fileName)
-                lowerName = fileName.lower()
+        existing_items = self._existing_child_paths(parent_item)
+        for file_name in names:
+            file_path = os.path.join(folder_path, file_name)
+            normalized_path = self._normalize_path(file_path)
+            if normalized_path in existing_items:
+                continue
 
-                if filePath in existing_items:
-                    continue
+            is_directory = os.path.isdir(file_path)
+            item = QTreeWidgetItem(parent_item)
+            item.setData(0, Qt.UserRole, file_path)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+            item.setText(0, f"[DIR] {file_name}" if is_directory else f"[FILE] {file_name}")
+            item.setCheckState(0, self._initial_check_state(file_path, file_name, is_directory, parent_state))
 
-                item = QTreeWidgetItem(parentItem)
-                item.setData(0, Qt.UserRole, filePath)
-
-                if os.path.isdir(filePath):
-                    item.setText(0, f"📁 {fileName}")
-                    if lowerName in self.excluded_folders_lower:
-                        item.setCheckState(0, Qt.Unchecked)
-                    else:
-                        item.setCheckState(0, Qt.Checked)
-
-                    if lazy_load:
-                        item.addChild(QTreeWidgetItem(["Loading..."]))
-                    else:
-                        self.addDirectoryItems(item, filePath, lazy_load=True)
+            if is_directory:
+                if lazy_load:
+                    if self._directory_has_entries(file_path):
+                        item.addChild(self._create_placeholder_item())
                 else:
-                    item.setText(0, f"📄 {fileName}")
-                    file_extension = os.path.splitext(fileName)[1].lower()
+                    self.add_directory_items(item, file_path, lazy_load=False)
 
-                    if lowerName in self.excluded_files_lower or file_extension in self.excluded_extensions_lower:
-                        item.setCheckState(0, Qt.Unchecked)
-                    else:
-                        item.setCheckState(0, Qt.Checked)
-        except Exception as e:
-            print(f"Error loading directory {folderPath}: {e}")
+    def _existing_child_paths(self, parent_item):
+        existing = set()
+        for index in range(parent_item.childCount()):
+            child = parent_item.child(index)
+            path = child.data(0, Qt.UserRole)
+            if path:
+                existing.add(self._normalize_path(path))
+        return existing
 
-    def onItemExpanded(self, item):
-        if item.childCount() == 1 and item.child(0).text(0) == "Loading...":
-            item.takeChildren()
-            folderPath = item.data(0, Qt.UserRole)
-            self.addDirectoryItems(item, folderPath, lazy_load=True)
+    def _directory_has_entries(self, folder_path):
+        try:
+            with os.scandir(folder_path) as iterator:
+                for _ in iterator:
+                    return True
+        except Exception as error:
+            self.folder_errors.append((folder_path, str(error)))
+        return False
 
-    def get_checked_items(self):
-        checked_items = []
-        self.collect_checked_items(self.invisibleRootItem(), checked_items)
-        return checked_items
+    def _initial_check_state(self, file_path, file_name, is_directory, parent_state):
+        override_state = self._get_override_state(file_path)
+        if override_state in (Qt.Checked, Qt.Unchecked, Qt.PartiallyChecked):
+            return override_state
 
-    def collect_checked_items(self, parentItem, checked_items):
-        for i in range(parentItem.childCount()):
-            child = parentItem.child(i)
-            filePath = child.data(0, Qt.UserRole)
-            if child.checkState(0) == Qt.Checked:
-                if filePath:
-                    checked_items.append(filePath)
-                if os.path.isdir(filePath):
-                    if not child.isExpanded():
-                        self.addDirectoryItems(child, filePath, lazy_load=False)
-                    self.collect_checked_items(child, checked_items)
+        if parent_state in (Qt.Checked, Qt.Unchecked):
+            return parent_state
 
-    def refresh(self):
-        self.clear()
-        if self.folder_path:
-            self.populate(
-                self.folder_path,
-                excluded_extensions=self.excluded_extensions,
-                excluded_folders=self.excluded_folders,
-                excluded_files=self.excluded_files
-            )
+        if self._is_excluded(file_name, is_directory):
+            return Qt.Unchecked
+        return Qt.Checked
+
+    def _is_excluded(self, file_name, is_directory):
+        lower_name = file_name.lower()
+        extension = os.path.splitext(lower_name)[1]
+
+        if is_directory:
+            if lower_name in self._rules["always_include_folders"]:
+                return False
+            return lower_name in self._rules["folders"]
+
+        if lower_name in self._rules["always_include_files"] or extension in self._rules["always_include_extensions"]:
+            return False
+
+        return lower_name in self._rules["files"] or extension in self._rules["extensions"]
+
+    def _item_state(self, item):
+        if item is None or item is self.invisibleRootItem():
+            return None
+        return item.checkState(0)
+
+    def _create_placeholder_item(self):
+        placeholder = QTreeWidgetItem([self.PLACEHOLDER_TEXT])
+        placeholder.setFlags(Qt.ItemIsEnabled)
+        placeholder.setData(0, Qt.UserRole, None)
+        return placeholder
+
+    def _has_placeholder(self, item):
+        for index in range(item.childCount()):
+            child = item.child(index)
+            if child.data(0, Qt.UserRole) is None and child.text(0) == self.PLACEHOLDER_TEXT:
+                return True
+        return False
+
+    def _remove_placeholder_if_present(self, item):
+        if item is None:
+            return
+
+        indexes_to_remove = []
+        for index in range(item.childCount()):
+            child = item.child(index)
+            if child.data(0, Qt.UserRole) is None and child.text(0) == self.PLACEHOLDER_TEXT:
+                indexes_to_remove.append(index)
+
+        for index in reversed(indexes_to_remove):
+            item.takeChild(index)
+
+    def on_item_expanded(self, item):
+        if not self._has_placeholder(item):
+            return
+
+        folder_path = item.data(0, Qt.UserRole)
+        if not self._is_directory_path(folder_path):
+            return
+
+        previous_state = self._suppress_item_changed
+        self._suppress_item_changed = True
+        self.add_directory_items(item, folder_path, lazy_load=True)
+        self._suppress_item_changed = previous_state
+        self.apply_active_filter()
+
+    def on_item_changed(self, item, _column):
+        if self._suppress_item_changed:
+            return
+
+        file_path = item.data(0, Qt.UserRole)
+        if not file_path:
+            return
+
+        state = item.checkState(0)
+        self._suppress_item_changed = True
+        if self._is_directory_path(file_path) and state in (Qt.Checked, Qt.Unchecked):
+            self.ensure_children_loaded(item, recursive=True)
+            self._apply_state_to_descendants(item, state)
+        self._update_parent_states(item.parent())
+        self._suppress_item_changed = False
+
+        self.apply_active_filter()
+        self.check_state_changed.emit()
+
+    def _apply_state_to_descendants(self, parent_item, state):
+        for index in range(parent_item.childCount()):
+            child = parent_item.child(index)
+            child_path = child.data(0, Qt.UserRole)
+            if not child_path:
+                continue
+
+            child.setCheckState(0, state)
+            if self._is_directory_path(child_path):
+                self._apply_state_to_descendants(child, state)
+
+    def _update_parent_states(self, item):
+        while item and item is not self.invisibleRootItem():
+            child_states = []
+            for index in range(item.childCount()):
+                child = item.child(index)
+                if child.data(0, Qt.UserRole):
+                    child_states.append(child.checkState(0))
+
+            if child_states:
+                if all(state == Qt.Checked for state in child_states):
+                    item.setCheckState(0, Qt.Checked)
+                elif all(state == Qt.Unchecked for state in child_states):
+                    item.setCheckState(0, Qt.Unchecked)
+                else:
+                    item.setCheckState(0, Qt.PartiallyChecked)
+            item = item.parent()
+
+    def _recompute_parent_states(self, parent_item):
+        for index in range(parent_item.childCount()):
+            child = parent_item.child(index)
+            child_path = child.data(0, Qt.UserRole)
+            if self._is_directory_path(child_path) and not self._has_placeholder(child):
+                self._recompute_parent_states(child)
+        self._update_parent_states(parent_item)
+
+    def ensure_children_loaded(self, item, recursive=False):
+        folder_path = item.data(0, Qt.UserRole)
+        if not self._is_directory_path(folder_path):
+            return
+
+        if self._has_placeholder(item):
+            self.add_directory_items(item, folder_path, lazy_load=not recursive)
+
+        if recursive:
+            for index in range(item.childCount()):
+                child = item.child(index)
+                child_path = child.data(0, Qt.UserRole)
+                if self._is_directory_path(child_path):
+                    self.ensure_children_loaded(child, recursive=True)
+
+    def get_checked_file_paths(self):
+        checked_files = []
+        seen = set()
+        self._collect_checked_files(self.invisibleRootItem(), checked_files, seen)
+        return checked_files
+
+    def _collect_checked_files(self, parent_item, checked_files, seen):
+        for index in range(parent_item.childCount()):
+            child = parent_item.child(index)
+            file_path = child.data(0, Qt.UserRole)
+            if not file_path:
+                continue
+
+            if self._is_directory_path(file_path):
+                if child.checkState(0) != Qt.Unchecked:
+                    self.ensure_children_loaded(child, recursive=True)
+                    self._collect_checked_files(child, checked_files, seen)
+            else:
+                if child.checkState(0) == Qt.Checked:
+                    normalized_path = self._normalize_path(file_path)
+                    if normalized_path not in seen:
+                        seen.add(normalized_path)
+                        checked_files.append(file_path)
+
+    def capture_check_states(self):
+        states = {}
+        self._capture_item_states(self.invisibleRootItem(), states)
+        return states
+
+    def _capture_item_states(self, parent_item, states):
+        for index in range(parent_item.childCount()):
+            child = parent_item.child(index)
+            file_path = child.data(0, Qt.UserRole)
+            if not file_path:
+                continue
+
+            states[file_path] = int(child.checkState(0))
+            if self._is_directory_path(file_path) and not self._has_placeholder(child):
+                self._capture_item_states(child, states)
+
+    def set_filter(self, name_filter="", extension_filter="", show_checked_only=False):
+        self._name_filter = name_filter.strip().lower()
+        self._extension_filter = extension_filter.strip().lower()
+        if self._extension_filter and not self._extension_filter.startswith("."):
+            self._extension_filter = f".{self._extension_filter}"
+        self._show_checked_only = bool(show_checked_only)
+        self.apply_active_filter()
+
+    def apply_active_filter(self):
+        root = self.invisibleRootItem()
+        for index in range(root.childCount()):
+            self._apply_filter_to_item(root.child(index))
+
+    def _apply_filter_to_item(self, item):
+        file_path = item.data(0, Qt.UserRole)
+        if not file_path:
+            item.setHidden(True)
+            return False
+
+        basename = os.path.basename(file_path).lower()
+        is_directory = self._is_directory_path(file_path)
+        name_match = not self._name_filter or self._name_filter in basename
+        checked_match = not self._show_checked_only or item.checkState(0) != Qt.Unchecked
+
+        if is_directory:
+            child_visible = False
+            for index in range(item.childCount()):
+                child = item.child(index)
+                child_path = child.data(0, Qt.UserRole)
+                if child_path and self._apply_filter_to_item(child):
+                    child_visible = True
+
+            potential_descendant_match = self._has_placeholder(item)
+            if self._show_checked_only and item.checkState(0) == Qt.Unchecked:
+                potential_descendant_match = False
+
+            visible = (name_match and checked_match) or child_visible or potential_descendant_match
+        else:
+            extension = os.path.splitext(basename)[1]
+            extension_match = not self._extension_filter or extension == self._extension_filter
+            visible = name_match and extension_match and checked_match
+
+        item.setHidden(not visible)
+        return visible
+
+    def expand_checked_folders(self):
+        root = self.invisibleRootItem()
+        for index in range(root.childCount()):
+            self._expand_checked_recursive(root.child(index))
+
+    def _expand_checked_recursive(self, item):
+        file_path = item.data(0, Qt.UserRole)
+        if not self._is_directory_path(file_path):
+            return item.checkState(0) == Qt.Checked
+
+        if self._has_placeholder(item):
+            self.ensure_children_loaded(item, recursive=False)
+
+        has_checked_descendant = False
+        for index in range(item.childCount()):
+            child = item.child(index)
+            if self._expand_checked_recursive(child):
+                has_checked_descendant = True
+
+        if item.checkState(0) == Qt.Checked or has_checked_descendant:
+            item.setExpanded(True)
+            return True
+        return False

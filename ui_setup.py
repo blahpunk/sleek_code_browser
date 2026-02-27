@@ -1,10 +1,22 @@
-from PyQt5.QtWidgets import (
-    QVBoxLayout, QHBoxLayout, QWidget, QTextEdit,
-    QSplitter, QPushButton, QProgressBar, QScrollArea, QFrame
-)
-from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPlainTextEdit,
+    QPushButton,
+    QScrollArea,
+    QSplitter,
+    QVBoxLayout,
+    QWidget,
+)
+
 from directory_view import DirectoryView
+
 
 class UiSetup:
     def __init__(self, app):
@@ -13,66 +25,112 @@ class UiSetup:
         self.setup_ui()
 
     def setup_ui(self):
-        splitter = QSplitter(Qt.Vertical)
+        self.mainLayout = QVBoxLayout(self.mainWidget)
+        self.mainLayout.setContentsMargins(8, 8, 8, 8)
+        self.mainLayout.setSpacing(8)
 
-        # Top half: text area + tabs
-        contentWidget = QWidget()
-        contentLayout = QVBoxLayout(contentWidget)
+        self.splitter = QSplitter(Qt.Vertical)
 
-        # Horizontal scrollable area for file tab buttons
+        top_widget = QWidget()
+        top_layout = QVBoxLayout(top_widget)
+        top_layout.setContentsMargins(0, 0, 0, 0)
+        top_layout.setSpacing(6)
+
+        options_layout = QHBoxLayout()
+        options_layout.setContentsMargins(0, 0, 0, 0)
+        options_layout.setSpacing(8)
+
+        self.bundleModeLabel = QLabel("Bundle Mode")
+        self.bundleModeCombo = QComboBox()
+        self.bundleModeCombo.addItem("AI Bundle Mode", "ai_bundle")
+        self.bundleModeCombo.addItem("Language-Safe Mode", "language_safe")
+
+        self.includeEndMarkersCheck = QCheckBox("Include end markers")
+
+        self.sizeIndicatorTitleLabel = QLabel("Size Indicator")
+        self.sizeIndicatorLabel = QLabel("Ready")
+
+        options_layout.addWidget(self.bundleModeLabel)
+        options_layout.addWidget(self.bundleModeCombo)
+        options_layout.addWidget(self.includeEndMarkersCheck)
+        options_layout.addStretch(1)
+        options_layout.addWidget(self.sizeIndicatorTitleLabel)
+        options_layout.addWidget(self.sizeIndicatorLabel)
+        top_layout.addLayout(options_layout)
+
         self.scrollArea = QScrollArea()
         self.scrollArea.setWidgetResizable(True)
         self.scrollArea.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.scrollArea.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.scrollArea.setFrameShape(QFrame.NoFrame)
-        self.scrollArea.setFixedHeight(32)
-        self.scrollArea.setStyleSheet("""
-            QScrollArea { background-color: #2c2c2c; border: none; }
-            QWidget { background-color: #2c2c2c; }
-            QScrollBar:horizontal { background-color: #2c2c2c; height: 8px; }
-            QScrollBar::handle:horizontal { background-color: #5a5a5a; min-width: 20px; border-radius: 4px; }
-            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { background: none; width: 0px; }
-        """)
+        self.scrollArea.setFixedHeight(34)
 
         self.tabBar = QWidget()
         self.tabLayout = QHBoxLayout(self.tabBar)
         self.tabLayout.setContentsMargins(0, 0, 0, 0)
-        self.tabLayout.setSpacing(5)
+        self.tabLayout.setSpacing(4)
         self.scrollArea.setWidget(self.tabBar)
+        top_layout.addWidget(self.scrollArea)
 
-        contentLayout.addWidget(self.scrollArea)
+        self.textArea = QPlainTextEdit()
+        self.textArea.setReadOnly(True)
+        self.textArea.setLineWrapMode(QPlainTextEdit.NoWrap)
+        self.textArea.setFont(QFont("Consolas", 10))
+        top_layout.addWidget(self.textArea)
 
-        # Multi-line text editor for file content display
-        self.textArea = QTextEdit()
-        self.textArea.setFont(QFont('Consolas', 10))
-        self.textArea.setStyleSheet("background-color: #2c2c2c; color: #f8f8f8;")
-        contentLayout.addWidget(self.textArea)
+        info_layout = QHBoxLayout()
+        info_layout.setContentsMargins(0, 0, 0, 0)
+        info_layout.setSpacing(8)
+        self.statsLabel = QLabel("0 files | 0 chars | 0 bytes | 0 lines | ~0 tokens")
+        self.statusLabel = QLabel("Select a folder to begin.")
+        info_layout.addWidget(self.statsLabel, 1)
+        info_layout.addWidget(self.statusLabel, 1)
+        top_layout.addLayout(info_layout)
 
-        splitter.addWidget(contentWidget)
+        self.splitter.addWidget(top_widget)
 
-        # Bottom half: tree view of files/folders
+        tree_widget = QWidget()
+        tree_layout = QVBoxLayout(tree_widget)
+        tree_layout.setContentsMargins(0, 0, 0, 0)
+        tree_layout.setSpacing(6)
+
+        filter_layout = QHBoxLayout()
+        filter_layout.setContentsMargins(0, 0, 0, 0)
+        filter_layout.setSpacing(8)
+        self.nameFilterInput = QLineEdit()
+        self.nameFilterInput.setPlaceholderText("Filter name (substring)")
+        self.extensionFilterInput = QLineEdit()
+        self.extensionFilterInput.setPlaceholderText("Extension filter (e.g. .py)")
+        self.showCheckedOnlyCheck = QCheckBox("Show checked only")
+        filter_layout.addWidget(self.nameFilterInput, 2)
+        filter_layout.addWidget(self.extensionFilterInput, 1)
+        filter_layout.addWidget(self.showCheckedOnlyCheck)
+        tree_layout.addLayout(filter_layout)
+
         self.fileTree = DirectoryView()
-        splitter.addWidget(self.fileTree)
-        splitter.setSizes([400, 200])
+        tree_layout.addWidget(self.fileTree)
+        self.splitter.addWidget(tree_widget)
+        self.splitter.setSizes([450, 260])
 
-        # Buttons below the UI
+        self.mainLayout.addWidget(self.splitter, 1)
+
         self.buttonsLayout = QHBoxLayout()
-        self.selectFolderButton = QPushButton('Select Folder')
-        self.showButton = QPushButton('Show')
-        self.copyAllButton = QPushButton('Copy All')
-        self.expandSelectedButton = QPushButton('Expand Selected')  # NEW
-        self.buttonsLayout.addWidget(self.expandSelectedButton)
+        self.buttonsLayout.setContentsMargins(0, 0, 0, 0)
+        self.buttonsLayout.setSpacing(8)
 
-        self.refreshButton = QPushButton('Refresh')  # NEW
-        self.modifyExclusionsButton = QPushButton('Manage Exclusions')  # NEW
+        self.selectFolderButton = QPushButton("Select Folder")
+        self.refreshButton = QPushButton("Refresh")
+        self.expandCheckedButton = QPushButton("Expand Checked")
+        self.buildBundleButton = QPushButton("Build Bundle")
+        self.copyBundleButton = QPushButton("Copy Bundle")
+        self.manageExclusionsButton = QPushButton("Manage Exclusions")
+        self.windowsIntegrationButton = QPushButton("Windows Integration")
 
         self.buttonsLayout.addWidget(self.selectFolderButton)
-        self.buttonsLayout.addWidget(self.showButton)
-        self.buttonsLayout.addWidget(self.copyAllButton)
         self.buttonsLayout.addWidget(self.refreshButton)
-        self.buttonsLayout.addWidget(self.modifyExclusionsButton)
-
-        # Main layout of the window
-        mainLayout = QVBoxLayout(self.mainWidget)
-        mainLayout.addWidget(splitter)
-        mainLayout.addLayout(self.buttonsLayout)
+        self.buttonsLayout.addWidget(self.expandCheckedButton)
+        self.buttonsLayout.addWidget(self.buildBundleButton)
+        self.buttonsLayout.addWidget(self.copyBundleButton)
+        self.buttonsLayout.addWidget(self.manageExclusionsButton)
+        self.buttonsLayout.addWidget(self.windowsIntegrationButton)
+        self.mainLayout.addLayout(self.buttonsLayout)
