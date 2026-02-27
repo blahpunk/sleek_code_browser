@@ -110,7 +110,7 @@ class DirectoryView(QTreeWidget):
             item = QTreeWidgetItem(parent_item)
             item.setData(0, Qt.UserRole, file_path)
             item.setFlags(item.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsSelectable)
-            item.setText(0, f"[DIR] {file_name}" if is_directory else f"[FILE] {file_name}")
+            item.setText(0, f"📁 {file_name}" if is_directory else f"📄 {file_name}")
             item.setCheckState(0, self._initial_check_state(file_path, file_name, is_directory, parent_state))
 
             if is_directory:
