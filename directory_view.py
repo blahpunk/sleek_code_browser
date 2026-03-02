@@ -64,10 +64,18 @@ class DirectoryView(QTreeWidget):
     def _normalize_names(self, values):
         normalized = set()
         for value in values or []:
-            text = str(value).strip().lower()
+            text = self._normalize_rule_path(value)
             if text:
                 normalized.add(text)
         return normalized
+
+    def _normalize_rule_path(self, value):
+        text = str(value).strip().lower().replace("\\", "/")
+        if not text:
+            return ""
+
+        parts = [part for part in text.split("/") if part and part != "."]
+        return "/".join(parts)
 
     def _normalize_extensions(self, values):
         normalized = set()
@@ -82,6 +90,21 @@ class DirectoryView(QTreeWidget):
 
     def _normalize_path(self, path):
         return os.path.normcase(os.path.abspath(path))
+
+    def _relative_rule_key(self, file_path):
+        if not file_path:
+            return ""
+
+        base_folder = self.folder_path or ""
+        try:
+            if base_folder:
+                relative = os.path.relpath(file_path, base_folder)
+            else:
+                relative = os.path.basename(file_path)
+        except ValueError:
+            relative = os.path.basename(file_path)
+
+        return self._normalize_rule_path(relative)
 
     def _is_directory_path(self, path):
         return bool(path) and os.path.isdir(path)
@@ -146,23 +169,32 @@ class DirectoryView(QTreeWidget):
         if parent_state in (Qt.Checked, Qt.Unchecked):
             return parent_state
 
-        if self._is_excluded(file_name, is_directory):
+        if self._is_excluded(file_path, file_name, is_directory):
             return Qt.Unchecked
         return Qt.Checked
 
-    def _is_excluded(self, file_name, is_directory):
-        lower_name = file_name.lower()
+    def _is_excluded(self, file_path, file_name, is_directory):
+        lower_name = self._normalize_rule_path(file_name)
+        relative_key = self._relative_rule_key(file_path)
         extension = os.path.splitext(lower_name)[1]
 
         if is_directory:
-            if lower_name in self._rules["always_include_folders"]:
+            if lower_name in self._rules["always_include_folders"] or relative_key in self._rules["always_include_folders"]:
                 return False
-            return lower_name in self._rules["folders"]
+            return lower_name in self._rules["folders"] or relative_key in self._rules["folders"]
 
-        if lower_name in self._rules["always_include_files"] or extension in self._rules["always_include_extensions"]:
+        if (
+            lower_name in self._rules["always_include_files"]
+            or relative_key in self._rules["always_include_files"]
+            or extension in self._rules["always_include_extensions"]
+        ):
             return False
 
-        return lower_name in self._rules["files"] or extension in self._rules["extensions"]
+        return (
+            lower_name in self._rules["files"]
+            or relative_key in self._rules["files"]
+            or extension in self._rules["extensions"]
+        )
 
     def _item_state(self, item):
         if item is None or item is self.invisibleRootItem():
