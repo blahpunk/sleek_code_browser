@@ -4,6 +4,9 @@ def apply_styles(app):
         QMainWindow {
             background-color: #181b20;
         }
+        QDialog, QMessageBox, QInputDialog {
+            background-color: #181b20;
+        }
         QWidget {
             color: #d7dce2;
             font-size: 12px;
@@ -86,6 +89,10 @@ def apply_styles(app):
         QListWidget {
             background-color: #1b2028;
             border: 1px solid #303946;
+        }
+        QListWidget::item:selected {
+            background-color: #365a8c;
+            color: #f4f8ff;
         }
         """
     )
