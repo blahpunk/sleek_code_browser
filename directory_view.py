@@ -106,8 +106,22 @@ class DirectoryView(QTreeWidget):
 
         return self._normalize_rule_path(relative)
 
+    def _record_folder_error(self, path, error):
+        entry = (path, str(error))
+        if entry not in self.folder_errors:
+            self.folder_errors.append(entry)
+
+    def _safe_is_directory(self, path):
+        if not path:
+            return False
+        try:
+            return os.path.isdir(path)
+        except OSError as error:
+            self._record_folder_error(path, error)
+            return False
+
     def _is_directory_path(self, path):
-        return bool(path) and os.path.isdir(path)
+        return self._safe_is_directory(path)
 
     def _get_override_state(self, path):
         return self._state_overrides.get(self._normalize_path(path))
@@ -119,7 +133,7 @@ class DirectoryView(QTreeWidget):
         try:
             names = sorted(os.listdir(folder_path), key=str.lower)
         except Exception as error:
-            self.folder_errors.append((folder_path, str(error)))
+            self._record_folder_error(folder_path, error)
             return
 
         existing_items = self._existing_child_paths(parent_item)
@@ -129,7 +143,7 @@ class DirectoryView(QTreeWidget):
             if normalized_path in existing_items:
                 continue
 
-            is_directory = os.path.isdir(file_path)
+            is_directory = self._safe_is_directory(file_path)
             item = QTreeWidgetItem(parent_item)
             item.setData(0, Qt.UserRole, file_path)
             item.setFlags(item.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsSelectable)
@@ -158,7 +172,7 @@ class DirectoryView(QTreeWidget):
                 for _ in iterator:
                     return True
         except Exception as error:
-            self.folder_errors.append((folder_path, str(error)))
+            self._record_folder_error(folder_path, error)
         return False
 
     def _initial_check_state(self, file_path, file_name, is_directory, parent_state):
@@ -166,11 +180,12 @@ class DirectoryView(QTreeWidget):
         if override_state in (Qt.Checked, Qt.Unchecked, Qt.PartiallyChecked):
             return override_state
 
+        if self._is_excluded(file_path, file_name, is_directory):
+            return Qt.Unchecked
+
         if parent_state in (Qt.Checked, Qt.Unchecked):
             return parent_state
 
-        if self._is_excluded(file_path, file_name, is_directory):
-            return Qt.Unchecked
         return Qt.Checked
 
     def _is_excluded(self, file_path, file_name, is_directory):

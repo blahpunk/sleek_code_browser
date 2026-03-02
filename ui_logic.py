@@ -1382,13 +1382,24 @@ class UiLogic:
         self.ui_setup.textArea.centerCursor()
 
     def copyBundle(self):
-        text = self.ui_setup.textArea.toPlainText()
+        text = self.bundle_text or self.ui_setup.textArea.toPlainText()
         if not text:
             self.set_status("No bundle content to copy.", warning=True)
             return
 
-        QApplication.clipboard().setText(text)
-        self.set_status("Copied current bundle preview to clipboard.")
+        app = QApplication.instance()
+        clipboard = app.clipboard() if app is not None else None
+        if clipboard is None:
+            self.set_status("Clipboard is unavailable right now.", warning=True)
+            return
+
+        try:
+            clipboard.setText(text)
+        except Exception as error:
+            self.set_status(f"Copy failed: {error}", warning=True)
+            return
+
+        self.set_status(f"Copied bundle to clipboard ({len(text):,} chars).")
 
     def expandCheckedFolders(self):
         self.ui_setup.fileTree.expand_checked_folders()
