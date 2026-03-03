@@ -431,13 +431,14 @@ class DirectoryView(QTreeWidget):
         if not self._is_directory_path(file_path):
             return item.checkState(0) == Qt.Checked
 
-        if self._has_placeholder(item):
-            self.ensure_children_loaded(item, recursive=False)
+        if item.checkState(0) == Qt.Unchecked:
+            return False
 
         has_checked_descendant = False
         for index in range(item.childCount()):
             child = item.child(index)
-            if self._expand_checked_recursive(child):
+            child_path = child.data(0, Qt.UserRole)
+            if child_path and self._expand_checked_recursive(child):
                 has_checked_descendant = True
 
         if item.checkState(0) == Qt.Checked or has_checked_descendant:
