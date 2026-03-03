@@ -13,6 +13,7 @@ class DirectoryView(QTreeWidget):
         self.setHeaderHidden(True)
         self.folder_path = ""
         self.folder_errors = []
+        self._path_type_cache = {}
         self._rules = self._normalize_rules(None)
         self._state_overrides = {}
         self._suppress_item_changed = False
@@ -25,12 +26,14 @@ class DirectoryView(QTreeWidget):
     def populate(self, folder_path, exclusion_rules=None, state_overrides=None):
         self.clear()
         self.folder_errors = []
+        self._path_type_cache = {}
         self.folder_path = os.path.abspath(folder_path) if folder_path else ""
         self._rules = self._normalize_rules(exclusion_rules)
         self._state_overrides = self._normalize_state_overrides(state_overrides)
 
         if not self.folder_path:
             return
+        self._path_type_cache[self._normalize_path(self.folder_path)] = True
 
         self._suppress_item_changed = True
         self.add_directory_items(self.invisibleRootItem(), self.folder_path, lazy_load=True)
@@ -114,14 +117,28 @@ class DirectoryView(QTreeWidget):
     def _safe_is_directory(self, path):
         if not path:
             return False
+        normalized_path = self._normalize_path(path)
+        cached_value = self._path_type_cache.get(normalized_path)
+        if cached_value is not None:
+            return cached_value
         try:
-            return os.path.isdir(path)
+            is_directory = os.path.isdir(path)
+            self._path_type_cache[normalized_path] = is_directory
+            return is_directory
         except OSError as error:
             self._record_folder_error(path, error)
+            self._path_type_cache[normalized_path] = False
             return False
 
     def _is_directory_path(self, path):
         return self._safe_is_directory(path)
+
+    def _entry_is_directory(self, entry):
+        try:
+            return entry.is_dir(follow_symlinks=False)
+        except OSError as error:
+            self._record_folder_error(entry.path, error)
+            return False
 
     def _get_override_state(self, path):
         return self._state_overrides.get(self._normalize_path(path))
@@ -131,19 +148,22 @@ class DirectoryView(QTreeWidget):
         parent_state = self._item_state(parent_item)
 
         try:
-            names = sorted(os.listdir(folder_path), key=str.lower)
+            with os.scandir(folder_path) as iterator:
+                entries = sorted(iterator, key=lambda entry: entry.name.lower())
         except Exception as error:
             self._record_folder_error(folder_path, error)
             return
 
         existing_items = self._existing_child_paths(parent_item)
-        for file_name in names:
-            file_path = os.path.join(folder_path, file_name)
+        for entry in entries:
+            file_name = entry.name
+            file_path = entry.path
             normalized_path = self._normalize_path(file_path)
             if normalized_path in existing_items:
                 continue
 
-            is_directory = self._safe_is_directory(file_path)
+            is_directory = self._entry_is_directory(entry)
+            self._path_type_cache[normalized_path] = is_directory
             item = QTreeWidgetItem(parent_item)
             item.setData(0, Qt.UserRole, file_path)
             item.setFlags(item.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsEnabled | Qt.ItemIsSelectable)
@@ -152,8 +172,7 @@ class DirectoryView(QTreeWidget):
 
             if is_directory:
                 if lazy_load:
-                    if self._directory_has_entries(file_path):
-                        item.addChild(self._create_placeholder_item())
+                    item.addChild(self._create_placeholder_item())
                 else:
                     self.add_directory_items(item, file_path, lazy_load=False)
 
@@ -165,15 +184,6 @@ class DirectoryView(QTreeWidget):
             if path:
                 existing.add(self._normalize_path(path))
         return existing
-
-    def _directory_has_entries(self, folder_path):
-        try:
-            with os.scandir(folder_path) as iterator:
-                for _ in iterator:
-                    return True
-        except Exception as error:
-            self._record_folder_error(folder_path, error)
-        return False
 
     def _initial_check_state(self, file_path, file_name, is_directory, parent_state):
         override_state = self._get_override_state(file_path)

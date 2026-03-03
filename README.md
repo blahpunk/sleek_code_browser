@@ -6,6 +6,10 @@ Sleek Code Browser is a Windows-first desktop app for building a single prompt-r
 
 ![Sleek Code Browser GUI Screenshot](screenshots/02-26-2026_01.png)
 
+## Latest Release
+
+- `v0.1.5` (March 2, 2026): improved directory traversal responsiveness by skipping inaccessible folders quickly and avoiding expensive eager subfolder probes during initial tree load.
+
 ## Features
 
 - Project tree with checkboxes and filters (`name`, `extension`, `checked-only`).
