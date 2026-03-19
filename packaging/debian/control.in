@@ -1,0 +1,10 @@
+Package: sleek-code-browser
+Version: @VERSION@
+Section: devel
+Priority: optional
+Architecture: amd64
+Maintainer: Sleek Code Browser Team <support@sleek.local>
+Depends: libc6 (>= 2.31), libstdc++6, libx11-6, libxext6, libxrender1, libxcb1, libglib2.0-0
+Description: Sleek Code Browser
+ Build prompt-ready source bundles from checked files in a project tree.
+ Includes the sleek CLI, desktop launcher integration, and configurable exclusions.

@@ -4,7 +4,9 @@ import ctypes
 import json
 import math
 import os
+import re
 import sys
+from datetime import datetime
 
 from PyQt5.QtCore import QSettings
 from PyQt5.QtWidgets import (
@@ -25,6 +27,7 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from styles import DEFAULT_THEME, apply_theme, normalize_theme
 
 if os.name == "nt":
     import winreg
@@ -457,8 +460,6 @@ class ExclusionsDialog(QDialog):
         parent=None,
     ):
         super().__init__(parent)
-        if parent is not None and parent.window() is not None:
-            self.setStyleSheet(parent.window().styleSheet())
         self.setWindowTitle("Manage Exclusions")
         self.resize(980, 700)
         self.clear_override_requested = False
@@ -618,8 +619,10 @@ class ExclusionsDialog(QDialog):
 
 
 class UiLogic:
-    def __init__(self, ui_setup):
+    def __init__(self, ui_setup, startup_folder="", app_title="Sleek Code Browser"):
         self.ui_setup = ui_setup
+        self.app_title = app_title or "Sleek Code Browser"
+        self.startup_folder = os.path.abspath(startup_folder) if startup_folder else ""
         self.settings = QSettings("SleekTools", "SleekCodeBrowser")
         self.bundle_entries = []
         self.bundle_text = ""
@@ -629,12 +632,15 @@ class UiLogic:
         self.current_folder = ""
         self.current_effective_config = None
         self.auto_detected_preset_id = None
+        self.current_theme = DEFAULT_THEME
+        self.status_role = "normal"
 
         self._migrate_legacy_settings_ini()
         self.global_exclusion_config = self._load_global_exclusion_config()
         self.project_overrides = self._load_project_overrides()
 
         self.connect_signals()
+        self._configure_platform_controls()
         self.restore_ui_state()
 
     def connect_signals(self):
@@ -643,9 +649,11 @@ class UiLogic:
         self.ui_setup.expandCheckedButton.clicked.connect(self.expandCheckedFolders)
         self.ui_setup.buildBundleButton.clicked.connect(self.buildBundle)
         self.ui_setup.copyBundleButton.clicked.connect(self.copyBundle)
+        self.ui_setup.exportBundleButton.clicked.connect(self.exportBundleTxt)
         self.ui_setup.manageExclusionsButton.clicked.connect(self.manageExclusions)
         self.ui_setup.windowsIntegrationButton.clicked.connect(self.manage_windows_integration)
 
+        self.ui_setup.themeCombo.currentIndexChanged.connect(self._theme_selection_changed)
         self.ui_setup.bundleModeCombo.currentIndexChanged.connect(self._bundle_preferences_changed)
         self.ui_setup.includeEndMarkersCheck.toggled.connect(self._bundle_preferences_changed)
 
@@ -655,15 +663,24 @@ class UiLogic:
         self.ui_setup.fileTree.check_state_changed.connect(self.applyTreeFilter)
         self.ui_setup.fileTree.itemExpanded.connect(lambda _item: self.applyTreeFilter())
 
+    def _configure_platform_controls(self):
+        if os.name != "nt":
+            self.ui_setup.windowsIntegrationButton.hide()
+
     def restore_ui_state(self):
-        self._block_bundle_signals(True)
+        self._block_ui_pref_signals(True)
+        saved_theme = normalize_theme(self.settings.value("ui/theme", DEFAULT_THEME, type=str))
+        theme_index = self.ui_setup.themeCombo.findData(saved_theme)
+        self.ui_setup.themeCombo.setCurrentIndex(theme_index if theme_index >= 0 else 0)
+        self.set_theme(self.ui_setup.themeCombo.currentData(), persist=False)
+
         saved_mode = self.settings.value("bundle/mode", "ai_bundle", type=str)
         mode_index = self.ui_setup.bundleModeCombo.findData(saved_mode)
         self.ui_setup.bundleModeCombo.setCurrentIndex(mode_index if mode_index >= 0 else 0)
         self.ui_setup.includeEndMarkersCheck.setChecked(
             self.settings.value("bundle/include_end_markers", True, type=bool)
         )
-        self._block_bundle_signals(False)
+        self._block_ui_pref_signals(False)
 
         splitter_sizes = self._load_json_value("ui/splitter_sizes", [])
         if splitter_sizes:
@@ -677,9 +694,9 @@ class UiLogic:
         if saved_pos is not None:
             window.move(saved_pos)
 
-        last_folder = self.settings.value("ui/last_folder", "", type=str)
-        if last_folder and os.path.isdir(last_folder):
-            self.open_folder(last_folder, update_last=False)
+        startup_folder = self._resolve_startup_folder()
+        if startup_folder:
+            self.open_folder(startup_folder, update_last=True)
         else:
             self.updateWindowTitle("")
             self.set_status("Select a folder to begin.")
@@ -691,11 +708,46 @@ class UiLogic:
         self._save_json_value("ui/splitter_sizes", self.ui_setup.splitter.sizes())
         if self.current_folder:
             self.settings.setValue("ui/last_folder", self.current_folder)
+        self.settings.setValue("ui/theme", self.current_theme)
         self.settings.sync()
 
-    def _block_bundle_signals(self, blocked):
+    def _block_ui_pref_signals(self, blocked):
+        self.ui_setup.themeCombo.blockSignals(blocked)
         self.ui_setup.bundleModeCombo.blockSignals(blocked)
         self.ui_setup.includeEndMarkersCheck.blockSignals(blocked)
+
+    def _resolve_startup_folder(self):
+        if self.startup_folder and os.path.isdir(self.startup_folder):
+            return self.startup_folder
+        last_folder = self.settings.value("ui/last_folder", "", type=str)
+        if last_folder and os.path.isdir(last_folder):
+            return os.path.abspath(last_folder)
+        return ""
+
+    def _theme_selection_changed(self):
+        self.set_theme(self.ui_setup.themeCombo.currentData(), persist=True)
+
+    def set_theme(self, theme_name, persist=True):
+        selected_theme = apply_theme(self.ui_setup.mainWidget.window(), theme_name)
+        self.current_theme = selected_theme
+
+        selected_index = self.ui_setup.themeCombo.findData(selected_theme)
+        if selected_index >= 0 and self.ui_setup.themeCombo.currentIndex() != selected_index:
+            was_blocked = self.ui_setup.themeCombo.blockSignals(True)
+            self.ui_setup.themeCombo.setCurrentIndex(selected_index)
+            self.ui_setup.themeCombo.blockSignals(was_blocked)
+
+        if persist:
+            self.settings.setValue("ui/theme", selected_theme)
+
+        self._refresh_status_style()
+
+    def _refresh_status_style(self):
+        label = self.ui_setup.statusLabel
+        label.setProperty("statusRole", self.status_role)
+        label.style().unpolish(label)
+        label.style().polish(label)
+        label.update()
 
     def _bundle_preferences_changed(self):
         self.settings.setValue("bundle/mode", self.ui_setup.bundleModeCombo.currentData())
@@ -1118,10 +1170,10 @@ class UiLogic:
 
     def updateWindowTitle(self, folder_path):
         if folder_path:
-            folder_name = os.path.basename(folder_path)
-            self.ui_setup.mainWidget.window().setWindowTitle(f"Sleek Code Browser - {folder_name}")
+            folder_name = os.path.basename(folder_path) or folder_path
+            self.ui_setup.mainWidget.window().setWindowTitle(f"{self.app_title} - {folder_name}")
         else:
-            self.ui_setup.mainWidget.window().setWindowTitle("Sleek Code Browser")
+            self.ui_setup.mainWidget.window().setWindowTitle(self.app_title)
 
     def applyTreeFilter(self):
         self.ui_setup.fileTree.set_filter(
@@ -1401,6 +1453,58 @@ class UiLogic:
 
         self.set_status(f"Copied bundle to clipboard ({len(text):,} chars).")
 
+    def _default_export_filename(self):
+        folder_name = os.path.basename(self.current_folder or "").strip().lower()
+        safe_name = re.sub(r"[^a-z0-9._-]+", "-", folder_name).strip("-")
+        if not safe_name:
+            safe_name = "bundle"
+        timestamp = datetime.now().strftime("%Y-%m-%d-%H%M")
+        return f"{safe_name}-bundle-{timestamp}.txt"
+
+    def exportBundleTxt(self):
+        text = self.bundle_text or self.ui_setup.textArea.toPlainText()
+        if not text:
+            self.set_status("No bundle content to export.", warning=True)
+            QMessageBox.warning(
+                self.ui_setup.mainWidget,
+                "Export Bundle to TXT",
+                "Build a bundle first, then export it.",
+            )
+            return
+
+        default_name = self._default_export_filename()
+        last_dir = self.settings.value("export/last_dir", "", type=str)
+        start_dir = last_dir or self.current_folder or os.path.expanduser("~")
+        initial_path = os.path.join(start_dir, default_name)
+
+        save_path, _ = QFileDialog.getSaveFileName(
+            self.ui_setup.mainWidget,
+            "Export Bundle to TXT",
+            initial_path,
+            "Text Files (*.txt);;All Files (*)",
+        )
+        if not save_path:
+            self.set_status("Export cancelled.")
+            return
+
+        if not save_path.lower().endswith(".txt"):
+            save_path = f"{save_path}.txt"
+
+        try:
+            with open(save_path, "w", encoding="utf-8") as handle:
+                handle.write(text)
+        except OSError as error:
+            self.set_status(f"Export failed: {error}", warning=True)
+            QMessageBox.critical(
+                self.ui_setup.mainWidget,
+                "Export Bundle to TXT",
+                f"Could not write the file.\n\n{error}",
+            )
+            return
+
+        self.settings.setValue("export/last_dir", os.path.dirname(save_path))
+        self.set_status(f"Exported bundle TXT: {save_path}")
+
     def expandCheckedFolders(self):
         self.ui_setup.fileTree.expand_checked_folders()
 
@@ -1448,7 +1552,5 @@ class UiLogic:
 
     def set_status(self, message, warning=False):
         self.ui_setup.statusLabel.setText(message)
-        if warning:
-            self.ui_setup.statusLabel.setStyleSheet("color: #f0b66f;")
-        else:
-            self.ui_setup.statusLabel.setStyleSheet("color: #b8c2cc;")
+        self.status_role = "warning" if warning else "normal"
+        self._refresh_status_style()

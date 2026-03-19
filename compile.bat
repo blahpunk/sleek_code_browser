@@ -1,1 +1,1 @@
-python -m PyInstaller main.spec
+python -m PyInstaller main.spec --clean

@@ -1,97 +1,104 @@
 # Sleek Code Browser
 
-Sleek Code Browser is a Windows-first desktop app for building a single prompt-ready code bundle from selected files in a project.
+Sleek Code Browser is a PyQt desktop app for creating prompt-ready source bundles from checked files in a project tree.
 
-## Screenshot
+## Highlights
 
-![Sleek Code Browser GUI Screenshot](screenshots/02-26-2026_01.png)
+- Bundle modes:
+  - `AI Bundle Mode`
+  - `Language-Safe Mode`
+- Bundle actions:
+  - `Build Bundle`
+  - `Copy Bundle`
+  - `Export TXT`
+- Startup folder precedence:
+  1. explicit CLI path argument
+  2. current working directory
+  3. saved last folder
+- Theme system:
+  - `Light` (default)
+  - `Dark`
+  - persisted under `ui/theme`
+- Optional Windows integration tools (installer-first, in-app repair on Windows).
 
-## Latest Release
-
-- `v0.1.6` (March 2, 2026): fixed `Expand Checked` freezes by keeping expansion lazy, skipping unchecked branches, and avoiding force-loading descendant folders during recursive expand.
-
-## Features
-
-- Project tree with checkboxes and filters (`name`, `extension`, `checked-only`).
-- Smart exclusion management with presets and project-specific overrides.
-- Two bundle formats:
-- `AI Bundle Mode`
-- `Language-Safe Mode` (comment-style markers per file type)
-- Single full-bundle preview (no batching).
-- File jump chips for all selected files.
-- Bundle stats: `files | chars | bytes | lines | ~tokens`.
-- Size indicator warnings:
-- Soft warning (high token count)
-- Hard warning (likely too large for one paste)
-- One-click copy of the full bundle.
-- Windows integration installer:
-- Adds Explorer right-click menu: `Sleek Here`
-- Works on folder background and folder items
-- Updates user `PATH`
-
-## Requirements
-
-- Windows 10/11
-- Python 3.10+ (for source run/build)
-- PyQt5
-
-Install dependency:
+## CLI Usage
 
 ```bash
-pip install PyQt5
+sleek /path/to/project
+sleek /path/to/file.py
 ```
+
+If no argument is passed, Sleek opens the shell working directory when valid.
 
 ## Run From Source
 
 ```bash
 python main.py
+python main.py /path/to/project
 ```
 
-Optional startup folder:
+## Version Source
+
+Release/versioning is controlled by the top-level `VERSION` file.
+
+## Build Artifacts
+
+### Windows
+
+- Build executable + installer:
+
+```powershell
+./build/windows/build.ps1
+```
+
+- Output:
+  - `dist/SleekCodeBrowser-Setup-<version>.exe`
+
+### Ubuntu
+
+- Build onefile binary + `.deb`:
 
 ```bash
-python main.py "C:\path\to\project"
+./build/linux/build.sh
 ```
 
-## Build Executable
+- Output:
+  - `dist/sleek-code-browser_<version>_amd64.deb`
 
-```bash
-compile.bat
-```
+## Installer Integration
 
-This runs:
+### Windows installer
 
-```bash
-python -m PyInstaller main.spec
-```
+Installer tasks (both checked by default):
 
-Output:
+- `Add Sleek to PATH`
+- `Add Sleek to Explorer context menu`
 
-- `dist/SleekCodeBrowser.exe`
+Context menu installs `Sleek Here` for:
 
-## Windows Integration (In-App)
+- folder right-click
+- folder-background right-click
 
-Use the `Windows Integration` button in the app to install/update or remove shell integration.
+### Ubuntu package
 
-Install adds:
+The `.deb` installs:
 
-- `Sleek Here` on folder right-click (`HKCU\Software\Classes\Directory\shell\SleekHere`)
-- `Sleek Here` on folder background right-click (`HKCU\Software\Classes\Directory\Background\shell\SleekHere`)
-- App launch directory to user `PATH`
+- app files under `/opt/sleek-code-browser/`
+- CLI launcher at `/usr/bin/sleek`
+- desktop file at `/usr/share/applications/sleek-code-browser.desktop`
 
-No admin rights are required (current-user scope).
+## GitHub Release Automation
 
-## Typical Flow
+Tagged pushes (`v*`) trigger `.github/workflows/release.yml` to:
 
-1. Select a folder.
-2. Check files/folders to include.
-3. Click `Build Bundle`.
-4. Use file chips to jump.
-5. Click `Copy Bundle`.
+1. build Windows installer
+2. build Ubuntu `.deb`
+3. publish both assets to the tagged GitHub Release
+4. mark the release as latest
 
-## Repo
+## Optional One-Command Release Helpers
 
-```bash
-git clone https://github.com/blahpunk/sleek_code_browser.git
-cd sleek_code_browser
-```
+- `./release.sh`
+- `./release.ps1`
+
+These helpers read `VERSION`, commit/tag/push, and use `gh` CLI for release updates.

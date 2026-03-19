@@ -1,9 +1,17 @@
 # Ignore folders
 node_modules/
 __pycache__/
-build/
+build/*
+!build/windows/
+!build/windows/build.ps1
+!build/windows/build.bat
+!build/linux/
+!build/linux/build.sh
+installer/windows/build/
+packaging/debian/sleek-code-browser/
 
 # Ignore files
 *.log
 *.tmp
 .env
+*.deb

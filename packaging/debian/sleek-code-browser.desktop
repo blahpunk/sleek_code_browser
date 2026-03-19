@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Sleek Code Browser
+Comment=Build prompt-ready code bundles
+Exec=sleek %F
+Icon=sleek-code-browser
+Terminal=false
+Categories=Development;Utility;
+StartupNotify=true
