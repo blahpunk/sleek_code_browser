@@ -28,8 +28,8 @@ ChangesEnvironment=yes
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "addtopath"; Description: "Add Sleek to PATH"; GroupDescription: "Additional tasks:"; Flags: checked
-Name: "addcontextmenu"; Description: "Add Sleek to Explorer context menu"; GroupDescription: "Additional tasks:"; Flags: checked
+Name: "addtopath"; Description: "Add Sleek to PATH"; GroupDescription: "Additional tasks:"
+Name: "addcontextmenu"; Description: "Add Sleek to Explorer context menu"; GroupDescription: "Additional tasks:"
 
 [Files]
 Source: "{#SourcePath}build\SleekCodeBrowser.exe"; DestDir: "{app}"; Flags: ignoreversion

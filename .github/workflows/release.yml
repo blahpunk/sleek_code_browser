@@ -86,7 +86,7 @@ jobs:
           python -m pip install pyinstaller pyqt5
 
       - name: Build Ubuntu package
-        run: ./build/linux/build.sh
+        run: bash ./build/linux/build.sh
 
       - name: Upload Ubuntu artifact
         uses: actions/upload-artifact@v4
