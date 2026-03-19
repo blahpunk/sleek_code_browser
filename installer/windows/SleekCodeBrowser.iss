@@ -160,7 +160,6 @@ begin
 
   PathValue := AddPathEntry(PathValue, ExpandConstant('{app}'));
   RegWriteExpandStringValue(PathRoot, PathSubkey, 'Path', PathValue);
-  RefreshEnvironment();
 end;
 
 procedure RemoveInstallDirFromPath();
@@ -176,7 +175,6 @@ begin
 
   PathValue := RemovePathEntry(PathValue, ExpandConstant('{app}'));
   RegWriteExpandStringValue(PathRoot, PathSubkey, 'Path', PathValue);
-  RefreshEnvironment();
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
