@@ -76,14 +76,28 @@ end;
 
 function PathListContains(const PathValue, DirectoryToFind: String): Boolean;
 var
-  Parts: TArrayOfString;
-  Index: Integer;
+  Remaining: String;
+  Item: String;
+  SeparatorPos: Integer;
 begin
   Result := False;
-  SplitString(PathValue, ';', Parts);
-  for Index := 0 to GetArrayLength(Parts) - 1 do
+  Remaining := PathValue;
+
+  while Remaining <> '' do
   begin
-    if CompareText(Trim(Parts[Index]), Trim(DirectoryToFind)) = 0 then
+    SeparatorPos := Pos(';', Remaining);
+    if SeparatorPos = 0 then
+    begin
+      Item := Trim(Remaining);
+      Remaining := '';
+    end
+    else
+    begin
+      Item := Trim(Copy(Remaining, 1, SeparatorPos - 1));
+      Remaining := Copy(Remaining, SeparatorPos + 1, MaxInt);
+    end;
+
+    if (Item <> '') and (CompareText(Item, Trim(DirectoryToFind)) = 0) then
     begin
       Result := True;
       Exit;
@@ -104,15 +118,27 @@ end;
 
 function RemovePathEntry(const PathValue, DirectoryToRemove: String): String;
 var
-  Parts: TArrayOfString;
-  Index: Integer;
+  Remaining: String;
   Item: String;
+  SeparatorPos: Integer;
 begin
   Result := '';
-  SplitString(PathValue, ';', Parts);
-  for Index := 0 to GetArrayLength(Parts) - 1 do
+  Remaining := PathValue;
+
+  while Remaining <> '' do
   begin
-    Item := Trim(Parts[Index]);
+    SeparatorPos := Pos(';', Remaining);
+    if SeparatorPos = 0 then
+    begin
+      Item := Trim(Remaining);
+      Remaining := '';
+    end
+    else
+    begin
+      Item := Trim(Copy(Remaining, 1, SeparatorPos - 1));
+      Remaining := Copy(Remaining, SeparatorPos + 1, MaxInt);
+    end;
+
     if (Item = '') or (CompareText(Item, DirectoryToRemove) = 0) then
       continue;
     if Result <> '' then
