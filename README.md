@@ -2,6 +2,10 @@
 
 Sleek Code Browser is a PyQt desktop app for creating prompt-ready source bundles from checked files in a project tree.
 
+## Screenshot
+
+![Sleek Code Browser Screenshot](screenshots/Clipboard_03-19-2026_01.png)
+
 ## Highlights
 
 - Bundle modes:
